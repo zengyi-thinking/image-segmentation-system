@@ -107,15 +107,35 @@ def run_gui():
     """运行GUI模式"""
     try:
         import tkinter as tk
-        from gui.main_window import MainWindow
-        
-        root = tk.Tk()
-        app = MainWindow(root)
-        root.mainloop()
-        
-    except ImportError:
-        print("错误: 无法导入tkinter，请安装GUI依赖")
-        print("或者使用命令行模式: python main.py --cli --input <image_path>")
+
+        # 尝试使用重构后的兼容版本
+        try:
+            from gui.main_window_refactored import MainWindowRefactored
+
+            root = tk.Tk()
+            app = MainWindowRefactored(root)
+            print("✅ 使用兼容版GUI界面")
+            root.mainloop()
+
+        except Exception as e:
+            print(f"⚠️ 兼容版GUI启动失败: {e}")
+            print("🔄 尝试使用原版GUI...")
+
+            # 备用方案：使用原版GUI
+            from gui.main_window import MainWindow
+
+            root = tk.Tk()
+            app = MainWindow(root)
+            print("✅ 使用原版GUI界面")
+            root.mainloop()
+
+    except ImportError as ie:
+        print(f"❌ 错误: 无法导入tkinter - {ie}")
+        print("请安装GUI依赖或使用命令行模式:")
+        print("python main.py --cli --input <image_path>")
+    except Exception as e:
+        print(f"❌ GUI启动失败: {e}")
+        print("请尝试命令行模式: python main.py --cli --input <image_path>")
 
 
 def main():

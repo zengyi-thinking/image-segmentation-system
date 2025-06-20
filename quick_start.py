@@ -73,22 +73,41 @@ def run_system_test():
 def launch_gui():
     """启动GUI界面"""
     print("\n🚀 启动GUI界面...")
-    
+
     try:
         import tkinter as tk
-        from gui.main_window import MainWindow
-        
-        root = tk.Tk()
-        app = MainWindow(root)
-        
-        print("✅ GUI界面已启动")
-        print("💡 提示: 关闭窗口即可退出程序")
-        
-        root.mainloop()
-        
+
+        # 尝试使用兼容版GUI
+        try:
+            from gui.main_window_refactored import MainWindowRefactored
+
+            root = tk.Tk()
+            app = MainWindowRefactored(root)
+
+            print("✅ 兼容版GUI界面已启动")
+            print("💡 提示: 关闭窗口即可退出程序")
+
+            root.mainloop()
+
+        except Exception as e:
+            print(f"⚠️ 兼容版GUI启动失败: {e}")
+            print("🔄 尝试使用原版GUI...")
+
+            # 备用方案
+            from gui.main_window import MainWindow
+
+            root = tk.Tk()
+            app = MainWindow(root)
+
+            print("✅ 原版GUI界面已启动")
+            print("💡 提示: 关闭窗口即可退出程序")
+
+            root.mainloop()
+
     except Exception as e:
         print(f"❌ GUI启动失败: {e}")
         print("请检查tkinter是否正确安装")
+        print("或尝试命令行模式: python main.py --cli")
 
 def show_menu():
     """显示主菜单"""
