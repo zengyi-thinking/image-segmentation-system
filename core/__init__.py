@@ -6,10 +6,12 @@
 from .edge_weights import EdgeWeightCalculator, AdaptiveWeightCalculator
 from .graph_builder import PixelGraphBuilder
 from .mst_segmentation import MSTSegmentation
+from .watershed_segmentation import WatershedSegmentation
 
 __all__ = [
     'EdgeWeightCalculator',
-    'AdaptiveWeightCalculator', 
+    'AdaptiveWeightCalculator',
     'PixelGraphBuilder',
-    'MSTSegmentation'
+    'MSTSegmentation',
+    'WatershedSegmentation'
 ]

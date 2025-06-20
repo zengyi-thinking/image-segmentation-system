@@ -120,7 +120,13 @@ class SegmentationMetrics:
         
         # F1分数
         metrics['f1_score'] = self.compute_f1_score(predicted_labels, ground_truth)
-        
+
+        # Dice系数
+        metrics['dice_coefficient'] = self.compute_dice_coefficient(predicted_labels, ground_truth)
+
+        # Jaccard指数（与IoU相同，但单独计算以确保一致性）
+        metrics['jaccard_index'] = self.compute_jaccard_index(predicted_labels, ground_truth)
+
         return metrics
     
     def compute_intra_region_variance(self, 
@@ -341,7 +347,33 @@ class SegmentationMetrics:
                 f1_scores.append(f1)
         
         return np.mean(f1_scores) if f1_scores else 0.0
-    
+
+    def compute_dice_coefficient(self,
+                               predicted: np.ndarray,
+                               ground_truth: np.ndarray) -> float:
+        """计算Dice系数"""
+        unique_labels = np.unique(ground_truth)
+
+        dice_scores = []
+        for label in unique_labels:
+            pred_mask = predicted == label
+            gt_mask = ground_truth == label
+
+            intersection = np.sum(pred_mask & gt_mask)
+            total = np.sum(pred_mask) + np.sum(gt_mask)
+
+            if total > 0:
+                dice = (2.0 * intersection) / total
+                dice_scores.append(dice)
+
+        return np.mean(dice_scores) if dice_scores else 0.0
+
+    def compute_jaccard_index(self,
+                            predicted: np.ndarray,
+                            ground_truth: np.ndarray) -> float:
+        """计算Jaccard指数（与IoU相同）"""
+        return self.compute_mean_iou(predicted, ground_truth)
+
     def _find_boundaries(self, label_map: np.ndarray) -> np.ndarray:
         """查找分割边界"""
         grad_x = cv2.Sobel(label_map.astype(np.float32), cv2.CV_32F, 1, 0, ksize=3)

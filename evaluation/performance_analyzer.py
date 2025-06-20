@@ -436,3 +436,107 @@ class PerformanceAnalyzer:
         df = pd.DataFrame(flattened_results)
         df.to_csv(filename, index=False)
         print(f"结果已导出到: {filename}")
+
+    def calculate_efficiency_score(self,
+                                 execution_time: float,
+                                 memory_usage: float,
+                                 image_size: int) -> float:
+        """
+        计算算法效率分数
+
+        Args:
+            execution_time: 执行时间（秒）
+            memory_usage: 内存使用（MB）
+            image_size: 图像大小（像素数）
+
+        Returns:
+            效率分数（0-100，越高越好）
+        """
+        # 归一化处理速度（像素/秒）
+        processing_speed = image_size / execution_time if execution_time > 0 else 0
+
+        # 归一化内存效率（像素/MB）
+        memory_efficiency = image_size / memory_usage if memory_usage > 0 else 0
+
+        # 综合效率分数（加权平均）
+        speed_weight = 0.6
+        memory_weight = 0.4
+
+        # 使用对数缩放来处理大范围的数值
+        speed_score = min(100, np.log10(processing_speed + 1) * 20)
+        memory_score = min(100, np.log10(memory_efficiency + 1) * 20)
+
+        efficiency_score = speed_weight * speed_score + memory_weight * memory_score
+
+        return max(0, min(100, efficiency_score))
+
+    def benchmark_with_multiple_runs(self,
+                                   algorithm_func: Callable,
+                                   image: np.ndarray,
+                                   algorithm_name: str,
+                                   num_runs: int = 5,
+                                   warmup_runs: int = 2) -> Dict[str, Any]:
+        """
+        多次运行基准测试以获得更准确的结果
+
+        Args:
+            algorithm_func: 算法函数
+            image: 测试图像
+            algorithm_name: 算法名称
+            num_runs: 测量运行次数
+            warmup_runs: 预热运行次数
+
+        Returns:
+            统计结果
+        """
+        # 预热运行
+        for _ in range(warmup_runs):
+            try:
+                _ = algorithm_func(image)
+            except Exception:
+                pass
+
+        # 正式测量
+        results = []
+        for run in range(num_runs):
+            result = self.profile_segmentation_algorithm(
+                algorithm_func, image, f"{algorithm_name}_run_{run}"
+            )
+            if result['success']:
+                results.append(result)
+
+        if not results:
+            return {
+                'algorithm_name': algorithm_name,
+                'success': False,
+                'error': '所有运行都失败了'
+            }
+
+        # 计算统计信息
+        execution_times = [r['execution_time'] for r in results]
+        memory_usage = [r['memory_used_mb'] for r in results]
+
+        return {
+            'algorithm_name': algorithm_name,
+            'success': True,
+            'num_runs': len(results),
+            'execution_time': {
+                'mean': np.mean(execution_times),
+                'std': np.std(execution_times),
+                'min': np.min(execution_times),
+                'max': np.max(execution_times),
+                'median': np.median(execution_times)
+            },
+            'memory_usage': {
+                'mean': np.mean(memory_usage),
+                'std': np.std(memory_usage),
+                'min': np.min(memory_usage),
+                'max': np.max(memory_usage),
+                'median': np.median(memory_usage)
+            },
+            'efficiency_score': self.calculate_efficiency_score(
+                np.mean(execution_times),
+                np.mean(memory_usage),
+                image.size
+            )
+        }

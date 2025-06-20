@@ -15,11 +15,14 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core import MSTSegmentation, EdgeWeightCalculator
+from core import MSTSegmentation, WatershedSegmentation, EdgeWeightCalculator
 from utils.image_io import ImageLoader, ImageSaver, ImageLoadError
 from utils.visualization import SegmentationVisualizer
 from utils.image_diagnostics import ImageDiagnostics
 from data_structures.segmentation_result import SegmentationResult
+from evaluation import AlgorithmComparator, PerformanceAnalyzer
+from .algorithm_comparison_window import AlgorithmComparisonWindow
+from .performance_analysis_window import PerformanceAnalysisWindow
 
 # 导入GUI组件
 from .style_manager import get_style_manager
@@ -50,10 +53,13 @@ class EnhancedMainWindow:
         self.image_saver = ImageSaver()
         self.visualizer = SegmentationVisualizer()
         self.diagnostics = ImageDiagnostics()
+        self.algorithm_comparator = AlgorithmComparator()
+        self.performance_analyzer = PerformanceAnalyzer()
 
         # 状态变量
         self.is_processing = False
         self.processing_thread = None
+        self.current_algorithm = "MST"
 
         # 加载保存的主题
         saved_theme = self.theme_manager.load_theme_preference()
@@ -169,7 +175,8 @@ class EnhancedMainWindow:
         # 创建回调函数字典
         callbacks = {
             'load_image': self.load_image,
-            'start_segmentation': self.start_segmentation
+            'start_segmentation': self.start_segmentation,
+            'algorithm_changed': self.on_algorithm_changed
         }
 
         # 创建控制面板
@@ -201,13 +208,13 @@ class EnhancedMainWindow:
         title_label.pack(side=tk.LEFT)
 
         # 副标题
-        subtitle_label = ttk.Label(
+        self.subtitle_label = ttk.Label(
             title_frame,
             text="基于最小生成树(MST)算法的智能图像分割 - 美化增强版",
             font=self.theme_manager.get_font("default"),
             foreground=self.theme_manager.get_color("fg_secondary")
         )
-        subtitle_label.pack(side=tk.LEFT, padx=(15, 0))
+        self.subtitle_label.pack(side=tk.LEFT, padx=(15, 0))
 
         # 版本信息
         version_label = ttk.Label(
@@ -349,6 +356,21 @@ class EnhancedMainWindow:
                 messagebox.showerror("❌ 未知错误", f"加载图像时发生错误:\n{str(e)}")
                 self.status_var.set("❌ 图像加载失败")
 
+    def on_algorithm_changed(self, algorithm_name):
+        """算法选择改变时的回调"""
+        self.current_algorithm = algorithm_name
+
+        # 更新副标题
+        if algorithm_name == "MST":
+            subtitle_text = "基于最小生成树(MST)算法的智能图像分割 - 美化增强版"
+        elif algorithm_name == "Watershed":
+            subtitle_text = "基于分水岭(Watershed)算法的智能图像分割 - 美化增强版"
+        else:
+            subtitle_text = "智能图像分割系统 - 美化增强版"
+
+        self.subtitle_label.configure(text=subtitle_text)
+        self.status_var.set(f"🔄 已切换到 {algorithm_name} 算法")
+
     def show_image_diagnostics(self):
         """显示图像诊断"""
         if self.current_image is None:
@@ -369,11 +391,17 @@ class EnhancedMainWindow:
 
         # 获取参数
         params = self.control_panel.get_parameters()
+        algorithm = params.get('algorithm', 'MST')
 
         # 验证参数
-        if params['alpha'] <= 0 or params['beta'] <= 0:
-            messagebox.showerror("❌ 参数错误", "颜色权重和空间权重必须大于0")
-            return
+        if algorithm == 'MST':
+            if params.get('alpha', 0) <= 0 or params.get('beta', 0) <= 0:
+                messagebox.showerror("❌ 参数错误", "颜色权重和空间权重必须大于0")
+                return
+        elif algorithm == 'Watershed':
+            if params.get('min_distance', 0) <= 0:
+                messagebox.showerror("❌ 参数错误", "最小距离必须大于0")
+                return
 
         # 开始处理
         self.is_processing = True
@@ -393,22 +421,43 @@ class EnhancedMainWindow:
     def perform_segmentation(self, params):
         """执行分割算法"""
         try:
+            algorithm = params.get('algorithm', 'MST')
+
             # 创建分割器
             self.update_progress("创建分割器...", 0.1)
-            weight_calculator = EdgeWeightCalculator(alpha=params['alpha'], beta=params['beta'])
-            segmenter = MSTSegmentation(
-                connectivity=params['connectivity'],
-                weight_calculator=weight_calculator,
-                min_segment_size=max(10, self.current_image.size // 10000)
-            )
 
-            # 执行分割
-            self.update_progress("开始图像分割...", 0.2)
-            result = segmenter.segment(
-                self.current_image,
-                threshold=params['threshold'],
-                progress_callback=self.update_progress
-            )
+            if algorithm == 'MST':
+                weight_calculator = EdgeWeightCalculator(alpha=params['alpha'], beta=params['beta'])
+                segmenter = MSTSegmentation(
+                    connectivity=params['connectivity'],
+                    weight_calculator=weight_calculator,
+                    min_segment_size=max(10, self.current_image.size // 10000)
+                )
+
+                # 执行MST分割
+                self.update_progress("开始MST图像分割...", 0.2)
+                result = segmenter.segment(
+                    self.current_image,
+                    threshold=params['threshold'],
+                    progress_callback=self.update_progress
+                )
+
+            elif algorithm == 'Watershed':
+                segmenter = WatershedSegmentation(
+                    min_distance=params['min_distance'],
+                    compactness=params['compactness'],
+                    watershed_line=params['watershed_line']
+                )
+
+                # 执行Watershed分割
+                self.update_progress("开始Watershed图像分割...", 0.2)
+                result = segmenter.segment(
+                    self.current_image,
+                    progress_callback=self.update_progress
+                )
+
+            else:
+                raise ValueError(f"不支持的算法: {algorithm}")
 
             # 验证结果
             if result is None or 'label_map' not in result:
@@ -416,17 +465,31 @@ class EnhancedMainWindow:
 
             # 创建分割结果对象
             self.update_progress("生成分割结果...", 0.9)
-            self.segmentation_result = SegmentationResult(
-                result['label_map'],
-                self.current_image,
-                "MST分割",
-                {
+
+            # 根据算法类型设置参数
+            if algorithm == 'MST':
+                algorithm_name = "MST分割"
+                result_params = {
                     'alpha': params['alpha'],
                     'beta': params['beta'],
                     'connectivity': params['connectivity'],
-                    'threshold': result['threshold'],
+                    'threshold': result.get('threshold', params.get('threshold')),
                     'num_segments': result['statistics']['num_segments']
                 }
+            elif algorithm == 'Watershed':
+                algorithm_name = "Watershed分割"
+                result_params = {
+                    'min_distance': params['min_distance'],
+                    'compactness': params['compactness'],
+                    'watershed_line': params['watershed_line'],
+                    'num_segments': result['statistics']['num_segments']
+                }
+
+            self.segmentation_result = SegmentationResult(
+                result['label_map'],
+                self.current_image,
+                algorithm_name,
+                result_params
             )
 
             # 在主线程中更新界面
@@ -638,42 +701,35 @@ class EnhancedMainWindow:
 
     def show_performance_analysis(self):
         """显示性能分析"""
-        if self.segmentation_result is None:
-            messagebox.showwarning("⚠️ 警告", "请先执行图像分割")
+        if self.current_image is None:
+            messagebox.showwarning("⚠️ 警告", "请先加载图像文件")
             return
 
-        # 获取统计信息
-        loader_stats = self.image_loader.get_load_statistics()
-        saver_stats = self.image_saver.get_save_statistics()
-
-        analysis_text = f"""📊 性能分析报告
-
-🖼️ 图像加载统计:
-• 总加载次数: {loader_stats['total_loaded']}
-• 失败次数: {loader_stats['failed_loads']}
-• 格式转换: {loader_stats['format_conversions']}
-• 尺寸调整: {loader_stats['size_reductions']}
-
-💾 图像保存统计:
-• 总保存次数: {saver_stats['total_saved']}
-• 失败次数: {saver_stats['failed_saves']}
-
-🎯 分割结果:
-• 区域数量: {self.segmentation_result.statistics['num_segments']}
-• 平均区域大小: {self.segmentation_result.statistics['avg_segment_size']:.1f}
-• 处理图像尺寸: {self.current_image.shape}
-
-🎨 当前配置:
-• 主题: {self.theme_manager.themes[self.theme_manager.get_current_theme()]['name']}
-• 图像显示: 增强版 (支持缩放拖拽)
-• 图像加载: 增强版 (多格式支持)
-"""
-
-        messagebox.showinfo("📊 性能分析", analysis_text)
+        # 创建性能分析窗口
+        PerformanceAnalysisWindow(self.root, self.current_image, self.performance_analyzer)
 
     def show_algorithm_comparison(self):
         """显示算法对比"""
-        messagebox.showinfo("⚖️ 算法对比", "算法对比功能正在开发中...")
+        if self.current_image is None:
+            messagebox.showwarning("⚠️ 警告", "请先加载图像文件")
+            return
+
+        # 创建算法对比窗口
+        AlgorithmComparisonWindow(self.root, self.current_image, self.algorithm_comparator)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def show_style_info(self):
         """显示样式信息"""

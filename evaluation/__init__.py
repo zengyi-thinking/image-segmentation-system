@@ -5,9 +5,11 @@
 
 from .metrics import SegmentationMetrics, PerformanceProfiler
 from .performance_analyzer import PerformanceAnalyzer
+from .comparison_tools import AlgorithmComparator
 
 __all__ = [
     'SegmentationMetrics',
     'PerformanceProfiler',
-    'PerformanceAnalyzer'
+    'PerformanceAnalyzer',
+    'AlgorithmComparator'
 ]

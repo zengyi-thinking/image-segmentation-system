@@ -37,20 +37,32 @@ class ControlPanel:
         
         # 初始化变量
         self.init_variables()
-        
+
         # 创建子组件
         self.create_image_loader()
+        self.create_algorithm_selection()
         self.create_parameter_panel()
         self.create_execution_panel()
         self.create_result_panel()
     
     def init_variables(self):
         """初始化控制变量"""
+        # 算法选择
+        self.algorithm_var = tk.StringVar(value="MST")
+
+        # MST算法参数
         self.alpha_var = tk.DoubleVar(value=1.0)
         self.beta_var = tk.DoubleVar(value=0.1)
         self.connectivity_var = tk.IntVar(value=4)
         self.threshold_var = tk.DoubleVar(value=0.0)
         self.auto_threshold_var = tk.BooleanVar(value=True)
+
+        # Watershed算法参数
+        self.min_distance_var = tk.IntVar(value=20)
+        self.compactness_var = tk.DoubleVar(value=0.001)
+        self.watershed_line_var = tk.BooleanVar(value=True)
+
+        # 通用变量
         self.progress_var = tk.DoubleVar()
     
     def create_image_loader(self):
@@ -80,28 +92,134 @@ class ControlPanel:
             wraplength=300
         )
         self.image_info_label.pack(fill=tk.X)
-    
+
+    def create_algorithm_selection(self):
+        """创建算法选择区域"""
+        algo_frame = self.style_manager.create_labelframe(
+            self.main_frame,
+            text="🧠 算法选择",
+            padding=10,
+            style_name='Heading.TLabelFrame'
+        )
+        algo_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # 算法选择
+        ttk.Label(algo_frame, text="选择分割算法:",
+                 font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor=tk.W)
+
+        algo_radio_frame = ttk.Frame(algo_frame)
+        algo_radio_frame.pack(fill=tk.X, pady=(5, 0))
+
+        # MST算法选项
+        mst_radio = ttk.Radiobutton(
+            algo_radio_frame,
+            text="🌳 MST (最小生成树) - 基于图论的分割",
+            variable=self.algorithm_var,
+            value="MST",
+            command=self.on_algorithm_changed
+        )
+        mst_radio.pack(anchor=tk.W, pady=(0, 5))
+
+        # Watershed算法选项
+        watershed_radio = ttk.Radiobutton(
+            algo_radio_frame,
+            text="🌊 Watershed (分水岭) - 基于形态学的分割",
+            variable=self.algorithm_var,
+            value="Watershed",
+            command=self.on_algorithm_changed
+        )
+        watershed_radio.pack(anchor=tk.W)
+
+        # 算法描述
+        self.algo_description = self.style_manager.create_label(
+            algo_frame,
+            text="MST算法通过构建最小生成树来分割图像，适合处理复杂纹理和边界。",
+            style_name='Info.TLabel',
+            wraplength=300
+        )
+        self.algo_description.pack(fill=tk.X, pady=(10, 0))
+
+    def on_algorithm_changed(self):
+        """算法选择改变时的回调"""
+        selected_algo = self.algorithm_var.get()
+
+        if selected_algo == "MST":
+            description = "MST算法通过构建最小生成树来分割图像，适合处理复杂纹理和边界。"
+        elif selected_algo == "Watershed":
+            description = "Watershed算法模拟水流填充过程，适合分割具有明显边界的对象。"
+        else:
+            description = "请选择一个分割算法。"
+
+        self.algo_description.configure(text=description)
+
+        # 更新参数面板
+        self.update_parameter_panel()
+
+        # 通知主窗口算法已改变
+        if 'algorithm_changed' in self.callbacks:
+            self.callbacks['algorithm_changed'](selected_algo)
+
     def create_parameter_panel(self):
         """创建参数设置区域"""
-        param_frame = self.style_manager.create_labelframe(
+        self.param_frame = self.style_manager.create_labelframe(
             self.main_frame,
             text="⚙️ 算法参数",
             padding=10,
             style_name='Heading.TLabelFrame'
         )
-        param_frame.pack(fill=tk.X, pady=(0, 15))
-        
+        self.param_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # 创建参数容器
+        self.param_container = ttk.Frame(self.param_frame)
+        self.param_container.pack(fill=tk.X)
+
+        # 初始显示MST参数
+        self.create_mst_parameters()
+        self.create_watershed_parameters()
+
+        # 初始只显示MST参数
+        self.update_parameter_panel()
+
+    def create_mst_parameters(self):
+        """创建MST算法参数"""
+        self.mst_frame = ttk.Frame(self.param_container)
+
         # 颜色权重
-        self.create_alpha_control(param_frame)
-        
+        self.create_alpha_control(self.mst_frame)
+
         # 空间权重
-        self.create_beta_control(param_frame)
-        
+        self.create_beta_control(self.mst_frame)
+
         # 连接性
-        self.create_connectivity_control(param_frame)
-        
+        self.create_connectivity_control(self.mst_frame)
+
         # 分割阈值
-        self.create_threshold_control(param_frame)
+        self.create_threshold_control(self.mst_frame)
+
+    def create_watershed_parameters(self):
+        """创建Watershed算法参数"""
+        self.watershed_frame = ttk.Frame(self.param_container)
+
+        # 最小距离参数
+        self.create_min_distance_control(self.watershed_frame)
+
+        # 紧凑性参数
+        self.create_compactness_control(self.watershed_frame)
+
+        # 分水岭线参数
+        self.create_watershed_line_control(self.watershed_frame)
+
+    def update_parameter_panel(self):
+        """根据选择的算法更新参数面板"""
+        # 隐藏所有参数框架
+        self.mst_frame.pack_forget()
+        self.watershed_frame.pack_forget()
+
+        # 显示对应的参数框架
+        if self.algorithm_var.get() == "MST":
+            self.mst_frame.pack(fill=tk.X)
+        elif self.algorithm_var.get() == "Watershed":
+            self.watershed_frame.pack(fill=tk.X)
     
     def create_alpha_control(self, parent):
         """创建颜色权重控制"""
@@ -193,7 +311,68 @@ class ControlPanel:
         )
         self.threshold_label.configure(font=('Consolas', 9))
         self.threshold_label.pack(anchor=tk.W)
-    
+
+    def create_min_distance_control(self, parent):
+        """创建最小距离控制"""
+        min_dist_frame = ttk.Frame(parent)
+        min_dist_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(min_dist_frame, text="📏 最小距离:",
+                 font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor=tk.W)
+
+        min_dist_scale = ttk.Scale(min_dist_frame, from_=5, to=50,
+                                  variable=self.min_distance_var, orient=tk.HORIZONTAL,
+                                  length=280)
+        min_dist_scale.pack(fill=tk.X, pady=(5, 0))
+
+        self.min_dist_label = self.style_manager.create_label(
+            min_dist_frame,
+            text="20",
+            style_name='Info.TLabel'
+        )
+        self.min_dist_label.configure(font=('Consolas', 9))
+        self.min_dist_label.pack(anchor=tk.W)
+
+        min_dist_scale.configure(
+            command=lambda v: self.min_dist_label.configure(text=f"{int(float(v))}")
+        )
+
+    def create_compactness_control(self, parent):
+        """创建紧凑性控制"""
+        compact_frame = ttk.Frame(parent)
+        compact_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(compact_frame, text="🎯 紧凑性:",
+                 font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor=tk.W)
+
+        compact_scale = ttk.Scale(compact_frame, from_=0.0001, to=0.01,
+                                 variable=self.compactness_var, orient=tk.HORIZONTAL,
+                                 length=280)
+        compact_scale.pack(fill=tk.X, pady=(5, 0))
+
+        self.compact_label = self.style_manager.create_label(
+            compact_frame,
+            text="0.0010",
+            style_name='Info.TLabel'
+        )
+        self.compact_label.configure(font=('Consolas', 9))
+        self.compact_label.pack(anchor=tk.W)
+
+        compact_scale.configure(
+            command=lambda v: self.compact_label.configure(text=f"{float(v):.4f}")
+        )
+
+    def create_watershed_line_control(self, parent):
+        """创建分水岭线控制"""
+        line_frame = ttk.Frame(parent)
+        line_frame.pack(fill=tk.X)
+
+        ttk.Label(line_frame, text="🌊 分水岭线:",
+                 font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor=tk.W)
+
+        ttk.Checkbutton(line_frame, text="在分割边界添加分水岭线",
+                       variable=self.watershed_line_var).pack(anchor=tk.W, pady=(5, 0))
+
     def create_execution_panel(self):
         """创建执行控制区域"""
         execute_frame = self.style_manager.create_labelframe(
@@ -326,10 +505,27 @@ class ControlPanel:
     
     def get_parameters(self):
         """获取当前参数设置"""
-        return {
-            'alpha': self.alpha_var.get(),
-            'beta': self.beta_var.get(),
-            'connectivity': self.connectivity_var.get(),
-            'threshold': None if self.auto_threshold_var.get() else self.threshold_var.get(),
-            'auto_threshold': self.auto_threshold_var.get()
-        }
+        algorithm = self.algorithm_var.get()
+
+        if algorithm == "MST":
+            return {
+                'algorithm': 'MST',
+                'alpha': self.alpha_var.get(),
+                'beta': self.beta_var.get(),
+                'connectivity': self.connectivity_var.get(),
+                'threshold': None if self.auto_threshold_var.get() else self.threshold_var.get(),
+                'auto_threshold': self.auto_threshold_var.get()
+            }
+        elif algorithm == "Watershed":
+            return {
+                'algorithm': 'Watershed',
+                'min_distance': self.min_distance_var.get(),
+                'compactness': self.compactness_var.get(),
+                'watershed_line': self.watershed_line_var.get()
+            }
+        else:
+            return {'algorithm': 'MST'}  # 默认返回MST参数
+
+    def get_selected_algorithm(self):
+        """获取选择的算法"""
+        return self.algorithm_var.get()
