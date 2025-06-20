@@ -75,13 +75,11 @@ class MSTSegmentation:
 
         try:
             # 1. 构建像素图
-            if progress_callback:
-                progress_callback("构建像素图...", 0.1)
+            self._safe_progress_callback(progress_callback, "构建像素图...", 0.1)
             graph = self.graph_builder.build_graph(image)
 
             # 2. 构建最小生成树
-            if progress_callback:
-                progress_callback("构建最小生成树...", 0.3)
+            self._safe_progress_callback(progress_callback, "构建最小生成树...", 0.3)
             mst_edges, mst_weights = self._build_mst(graph)
 
             # 3. 计算分割阈值
@@ -93,28 +91,33 @@ class MSTSegmentation:
                 threshold = np.median(mst_weights) if mst_weights else 1.0
 
             # 4. 基于阈值进行分割
-            if progress_callback:
-                progress_callback(f"使用阈值 {threshold:.2f} 进行分割...", 0.6)
+            self._safe_progress_callback(progress_callback, f"使用阈值 {threshold:.2f} 进行分割...", 0.6)
             segmentation_result = self._threshold_segmentation(
                 graph, mst_edges, mst_weights, threshold, height, width
             )
 
             # 5. 后处理：合并小区域
-            if progress_callback:
-                progress_callback("后处理：合并小区域...", 0.8)
+            self._safe_progress_callback(progress_callback, "后处理：合并小区域...", 0.8)
             self._post_process_segments(segmentation_result, graph)
 
-            if progress_callback:
-                progress_callback("分割完成", 1.0)
+            self._safe_progress_callback(progress_callback, "分割完成", 1.0)
 
             return segmentation_result
 
         except Exception as e:
             error_msg = f"分割过程中发生错误: {str(e)}"
-            if progress_callback:
-                progress_callback(error_msg, -1)
+            self._safe_progress_callback(progress_callback, error_msg, -1)
             raise RuntimeError(error_msg) from e
-    
+
+    def _safe_progress_callback(self, callback, message: str, progress: float):
+        """安全的进度回调调用"""
+        if callback is not None and callable(callback):
+            try:
+                callback(message, progress)
+            except Exception as e:
+                # 如果回调函数出错，记录但不中断主流程
+                print(f"进度回调函数错误: {e}")
+
     def _build_mst(self, graph: Dict) -> Tuple[List, List]:
         """
         使用Kruskal算法构建最小生成树

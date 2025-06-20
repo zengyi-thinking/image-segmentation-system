@@ -396,7 +396,25 @@ class ImageLoader:
 
     def get_load_statistics(self) -> Dict[str, int]:
         """获取加载统计信息"""
-        return self.load_stats.copy()
+        try:
+            if hasattr(self, 'load_stats') and self.load_stats:
+                return self.load_stats.copy()
+            else:
+                # 返回默认统计信息
+                return {
+                    'total_loaded': 0,
+                    'failed_loads': 0,
+                    'format_conversions': 0,
+                    'size_reductions': 0
+                }
+        except Exception as e:
+            print(f"获取加载统计信息时发生错误: {e}")
+            return {
+                'total_loaded': 0,
+                'failed_loads': 0,
+                'format_conversions': 0,
+                'size_reductions': 0
+            }
 
     def reset_statistics(self):
         """重置统计信息"""
@@ -521,55 +539,214 @@ class ImageSaver:
 
         self.logger = logging.getLogger(__name__)
     
-    def save_image(self, 
-                  image: np.ndarray, 
+    def save_image(self,
+                  image: np.ndarray,
                   output_path: Union[str, Path],
-                  quality: Optional[int] = None) -> bool:
+                  quality: Optional[int] = None,
+                  metadata: Optional[Dict] = None) -> bool:
         """
-        保存图像文件
-        
+        增强版图像保存方法
+
         Args:
             image: 要保存的图像（RGB格式）
             output_path: 输出文件路径
-            quality: 图像质量（JPEG: 0-100, PNG: 0-9）
-            
+            quality: 图像质量
+            metadata: 图像元数据
+
         Returns:
             是否保存成功
         """
         try:
             output_path = Path(output_path)
-            
+            self.save_stats['total_saved'] += 1
+
+            # 验证输入
+            self._validate_save_input(image, output_path)
+
             # 创建输出目录
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # 转换为BGR格式（OpenCV使用）
+
+            # 尝试多种保存方法
+            success = self._save_with_fallback(image, output_path, quality, metadata)
+
+            if success:
+                self.logger.info(f"图像已保存到: {output_path}")
+                return True
+            else:
+                self.save_stats['failed_saves'] += 1
+                self.logger.error(f"保存图像失败: {output_path}")
+                return False
+
+        except Exception as e:
+            self.save_stats['failed_saves'] += 1
+            self.logger.error(f"保存图像时发生错误: {e}")
+            return False
+
+    def _validate_save_input(self, image: np.ndarray, output_path: Path):
+        """验证保存输入"""
+        if image is None:
+            raise ValueError("图像不能为None")
+
+        if len(image.shape) != 3 or image.shape[2] != 3:
+            raise ValueError(f"图像形状异常: {image.shape}，期望 (H, W, 3)")
+
+        if image.dtype != np.uint8:
+            raise ValueError(f"图像数据类型异常: {image.dtype}，期望 uint8")
+
+        # 检查输出目录权限
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            raise PermissionError(f"无法创建输出目录: {output_path.parent}")
+
+    def _save_with_fallback(self, image: np.ndarray, output_path: Path,
+                           quality: Optional[int], metadata: Optional[Dict]) -> bool:
+        """使用多种方法尝试保存图像"""
+        save_methods = [
+            ("OpenCV", self._save_with_opencv),
+            ("PIL", self._save_with_pil),
+            ("PIL(强制转换)", self._save_with_pil_force)
+        ]
+
+        for method_name, method in save_methods:
+            try:
+                self.logger.debug(f"尝试使用 {method_name} 保存: {output_path}")
+                success = method(image, output_path, quality, metadata)
+
+                if success:
+                    self.logger.info(f"成功使用 {method_name} 保存图像")
+                    return True
+
+            except Exception as e:
+                self.logger.warning(f"{method_name} 保存失败: {str(e)}")
+                continue
+
+        return False
+
+    def _save_with_opencv(self, image: np.ndarray, output_path: Path,
+                         quality: Optional[int], metadata: Optional[Dict]) -> bool:
+        """使用OpenCV保存图像"""
+        try:
+            # 转换为BGR格式
             image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            
+
             # 设置保存参数
             save_params = []
             ext = output_path.suffix.lower()
-            
+
             if quality is None:
                 quality = self.quality_settings.get(ext, 95)
-            
+
             if ext in ['.jpg', '.jpeg']:
                 save_params = [cv2.IMWRITE_JPEG_QUALITY, quality]
             elif ext == '.png':
-                save_params = [cv2.IMWRITE_PNG_COMPRESSION, quality]
-            
-            # 保存图像
+                save_params = [cv2.IMWRITE_PNG_COMPRESSION, min(quality, 9)]
+            elif ext == '.webp':
+                save_params = [cv2.IMWRITE_WEBP_QUALITY, quality]
+
+            # 处理中文路径
+            if not str(output_path).isascii():
+                return self._save_opencv_with_bytes(image_bgr, output_path, save_params)
+
+            # 正常保存
             success = cv2.imwrite(str(output_path), image_bgr, save_params)
-            
-            if success:
-                print(f"图像已保存到: {output_path}")
-                return True
-            else:
-                print(f"保存图像失败: {output_path}")
-                return False
-                
+            return success
+
         except Exception as e:
-            print(f"保存图像时发生错误: {e}")
-            return False
+            raise Exception(f"OpenCV保存失败: {str(e)}")
+
+    def _save_opencv_with_bytes(self, image_bgr: np.ndarray, output_path: Path,
+                               save_params: List) -> bool:
+        """使用OpenCV字节流保存（解决中文路径问题）"""
+        try:
+            # 编码图像
+            ext = output_path.suffix.lower()
+            success, encoded_img = cv2.imencode(ext, image_bgr, save_params)
+
+            if not success:
+                return False
+
+            # 写入文件
+            with open(output_path, 'wb') as f:
+                f.write(encoded_img.tobytes())
+
+            return True
+
+        except Exception as e:
+            raise Exception(f"OpenCV字节流保存失败: {str(e)}")
+
+    def _save_with_pil(self, image: np.ndarray, output_path: Path,
+                      quality: Optional[int], metadata: Optional[Dict]) -> bool:
+        """使用PIL保存图像"""
+        try:
+            # 转换为PIL图像
+            pil_image = Image.fromarray(image)
+
+            # 设置保存参数
+            save_kwargs = {}
+            ext = output_path.suffix.lower()
+
+            if quality is None:
+                quality = self.quality_settings.get(ext, 95)
+
+            if ext in ['.jpg', '.jpeg']:
+                save_kwargs.update({
+                    'quality': quality,
+                    'optimize': True,
+                    'progressive': True
+                })
+            elif ext == '.png':
+                save_kwargs.update({
+                    'optimize': True,
+                    'compress_level': min(quality, 9)
+                })
+            elif ext == '.webp':
+                save_kwargs.update({
+                    'quality': quality,
+                    'method': 6
+                })
+
+            # 添加元数据
+            if metadata:
+                if ext in ['.jpg', '.jpeg'] and 'exif' in metadata:
+                    save_kwargs['exif'] = metadata['exif']
+
+            # 保存图像
+            pil_image.save(output_path, **save_kwargs)
+            return True
+
+        except Exception as e:
+            raise Exception(f"PIL保存失败: {str(e)}")
+
+    def _save_with_pil_force(self, image: np.ndarray, output_path: Path,
+                            quality: Optional[int], metadata: Optional[Dict]) -> bool:
+        """强制使用PIL保存（最后的备用方案）"""
+        try:
+            # 确保图像格式正确
+            if image.dtype != np.uint8:
+                image = np.clip(image, 0, 255).astype(np.uint8)
+
+            # 转换为PIL图像
+            pil_image = Image.fromarray(image, 'RGB')
+
+            # 简单保存，不使用高级参数
+            pil_image.save(output_path)
+            return True
+
+        except Exception as e:
+            raise Exception(f"PIL强制保存失败: {str(e)}")
+
+    def get_save_statistics(self) -> Dict[str, int]:
+        """获取保存统计信息"""
+        return self.save_stats.copy()
+
+    def reset_statistics(self):
+        """重置统计信息"""
+        self.save_stats = {
+            'total_saved': 0,
+            'failed_saves': 0,
+            'format_conversions': 0
+        }
     
     def save_image_pil(self, 
                       image: np.ndarray, 

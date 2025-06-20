@@ -6,6 +6,7 @@
 import tkinter as tk
 from tkinter import ttk
 from .style_manager import get_style_manager
+from .theme_manager import get_theme_manager
 
 
 class ControlPanel:
@@ -22,6 +23,7 @@ class ControlPanel:
         self.parent = parent
         self.callbacks = callbacks or {}
         self.style_manager = get_style_manager()
+        self.theme_manager = get_theme_manager()
         
         # 创建主框架
         self.main_frame = self.style_manager.create_labelframe(
@@ -286,9 +288,16 @@ class ControlPanel:
     
     def update_progress(self, text, progress=None):
         """更新进度显示"""
-        self.progress_text.configure(text=text)
-        if progress is not None:
-            self.progress_var.set(progress)
+        try:
+            if hasattr(self, 'progress_text') and self.progress_text:
+                self.progress_text.configure(text=text)
+
+            if progress is not None and hasattr(self, 'progress_var') and self.progress_var:
+                # 确保progress是有效的数值
+                if isinstance(progress, (int, float)) and -1 <= progress <= 1:
+                    self.progress_var.set(progress)
+        except Exception as e:
+            print(f"更新进度时发生错误: {e}")
     
     def update_result_text(self, text):
         """更新结果文本"""

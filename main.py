@@ -108,17 +108,17 @@ def run_gui():
     try:
         import tkinter as tk
 
-        # 尝试使用重构后的兼容版本
+        # 尝试使用美化增强版
         try:
-            from gui.main_window_refactored import MainWindowRefactored
+            from gui.enhanced_main_window import EnhancedMainWindow
 
             root = tk.Tk()
-            app = MainWindowRefactored(root)
-            print("✅ 使用兼容版GUI界面")
+            app = EnhancedMainWindow(root)
+            print("✅ 使用美化增强版GUI界面")
             root.mainloop()
 
         except Exception as e:
-            print(f"⚠️ 兼容版GUI启动失败: {e}")
+            print(f"⚠️ 美化版GUI启动失败: {e}")
             print("🔄 尝试使用原版GUI...")
 
             # 备用方案：使用原版GUI
