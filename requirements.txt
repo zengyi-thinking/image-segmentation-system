@@ -1,0 +1,43 @@
+# 图像分割系统依赖包
+
+# 核心计算库
+numpy>=1.19.0
+scipy>=1.7.0
+
+# 图像处理
+opencv-python>=4.5.0
+Pillow>=8.0.0
+
+# 数据可视化
+matplotlib>=3.3.0
+seaborn>=0.11.0
+
+# GUI框架 (可选择其一)
+# tkinter (Python内置，无需安装)
+PyQt5>=5.15.0  # 备选GUI框架
+
+# 性能分析
+psutil>=5.8.0
+memory-profiler>=0.60.0
+
+# 数据处理
+pandas>=1.3.0
+
+# 图论算法
+networkx>=2.6.0
+
+# 测试框架
+pytest>=6.2.0
+pytest-cov>=2.12.0
+
+# 代码质量
+black>=21.0.0
+flake8>=3.9.0
+
+# 文档生成
+sphinx>=4.0.0
+sphinx-rtd-theme>=0.5.0
+
+# 开发工具
+jupyter>=1.0.0
+ipykernel>=6.0.0
