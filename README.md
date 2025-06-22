@@ -56,16 +56,14 @@
 1. **克隆项目**
 
    ```bash
-   git clone https://github.com/your-repo/image-segmentation-system.git
+   git clone https://github.com/zengyi-thinking/image-segmentation-system.git
    cd image-segmentation-system
    ```
-
 2. **安装依赖**
 
    ```bash
    pip install -r requirements.txt
    ```
-
 3. **运行应用程序**
 
    ```bash
@@ -396,15 +394,14 @@ class GMMSegmentation:
    - 垂直滚动: 上下浏览大图像
    - 水平滚动: 左右浏览宽图像
    - 同时支持: 任意方向的自由滚动
-
 2. **多种输入方式**
 
    - **鼠标滚轮**: 垂直滚动，Shift+滚轮水平滚动
    - **键盘导航**: 方向键、Page Up/Down、Home/End
    - **触控手势**: 双击缩放、右键上下文菜单
    - **拖拽操作**: 鼠标拖拽平移图像
-
 3. **智能缩放功能**
+
    - **Ctrl+滚轮**: 以鼠标位置为中心缩放
    - **快捷键缩放**: +/- 键快速缩放
    - **预设缩放**: 1-6 数字键快速切换缩放级别
@@ -458,22 +455,20 @@ class EnhancedImageDisplay:
    - 文字色: #000000
    - 强调色: #0078D4
    - 适用: 白天使用，明亮环境
-
 2. **深色主题 (Dark)**
 
    - 背景色: #2D2D2D
    - 文字色: #FFFFFF
    - 强调色: #0078D4
    - 适用: 夜间使用，减少眼疲劳
-
 3. **蓝色主题 (Blue)**
 
    - 背景色: #F0F8FF
    - 文字色: #003366
    - 强调色: #0066CC
    - 适用: 商务风格，专业环境
-
 4. **绿色主题 (Green)**
+
    - 背景色: #F0FFF0
    - 文字色: #006600
    - 强调色: #228B22
@@ -719,21 +714,19 @@ python -m pytest --cov=core --cov=gui --cov=utils tests/
    - K-Means 和 GMM 算法测试
    - 数据结构测试
    - 工具函数测试
-
 2. **集成测试**: 组件交互验证
 
    - GUI 与算法集成
    - 配置系统集成
    - 日志系统集成
    - 性能监控集成
-
 3. **性能测试**: 内存使用和执行时间
 
    - 大图像处理测试
    - 内存泄漏检测
    - 并发处理测试
-
 4. **GUI 测试**: 界面功能验证
+
    - 主题切换测试
    - 滚动功能测试
    - 快捷键测试
