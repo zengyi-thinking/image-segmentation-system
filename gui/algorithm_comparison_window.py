@@ -196,46 +196,103 @@ class AlgorithmComparisonWindow:
     def display_visual_comparison(self, parent, comparison_result):
         """显示可视化对比"""
         try:
+            # 创建可滚动的框架
+            scroll_frame = self.create_scrollable_frame(parent)
+
             # 使用matplotlib显示对比图
             import matplotlib.pyplot as plt
             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-            
+
             fig = self.algorithm_comparator.visualize_comparison(comparison_result)
             if fig:
-                canvas = FigureCanvasTkAgg(fig, parent)
+                canvas = FigureCanvasTkAgg(fig, scroll_frame)
                 canvas.draw()
                 canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+                # 添加工具栏
+                from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+                toolbar = NavigationToolbar2Tk(canvas, scroll_frame)
+                toolbar.update()
+
             else:
-                error_label = ttk.Label(parent, text="无法生成可视化对比图")
+                error_label = ttk.Label(scroll_frame, text="无法生成可视化对比图")
                 error_label.pack(expand=True)
-                
+
         except Exception as e:
             error_label = ttk.Label(parent, text=f"显示可视化对比时发生错误: {str(e)}")
             error_label.pack(expand=True)
+
+    def create_scrollable_frame(self, parent):
+        """创建可滚动的框架"""
+        # 创建画布和滚动条
+        canvas = tk.Canvas(parent, highlightthickness=0)
+        v_scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        h_scrollbar = ttk.Scrollbar(parent, orient="horizontal", command=canvas.xview)
+
+        scrollable_frame = ttk.Frame(canvas)
+
+        # 配置滚动
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+
+        # 布局
+        canvas.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        parent.grid_rowconfigure(0, weight=1)
+        parent.grid_columnconfigure(0, weight=1)
+
+        # 绑定鼠标滚轮
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        canvas.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+        canvas.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+
+        return scrollable_frame
     
     def display_performance_metrics(self, parent, comparison_result):
         """显示性能指标"""
+        # 创建可滚动的容器
+        container = ttk.Frame(parent)
+        container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
         # 创建表格显示性能指标
         columns = ('算法', '执行时间(s)', '内存使用(MB)', '分割区域数', '成功状态')
-        
-        tree = ttk.Treeview(parent, columns=columns, show='headings')
-        
+
+        tree = ttk.Treeview(container, columns=columns, show='headings')
+
         # 设置列标题
         for col in columns:
             tree.heading(col, text=col)
             tree.column(col, width=120)
-        
+
+        # 添加垂直滚动条
+        v_scrollbar = ttk.Scrollbar(container, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=v_scrollbar.set)
+
+        # 添加水平滚动条
+        h_scrollbar = ttk.Scrollbar(container, orient="horizontal", command=tree.xview)
+        tree.configure(xscrollcommand=h_scrollbar.set)
+
         # 添加数据
         performance_results = comparison_result.get('performance_results', {})
         algorithm_results = comparison_result.get('algorithm_results', {})
-        
+
         for alg_name in performance_results:
             perf = performance_results[alg_name]
             alg_result = algorithm_results.get(alg_name, {})
-            
+
             success = "✅ 成功" if alg_result.get('success', False) else "❌ 失败"
             segments = alg_result.get('metrics', {}).get('num_segments', 'N/A')
-            
+
             tree.insert('', 'end', values=(
                 alg_name,
                 f"{perf.get('execution_time', 0):.3f}",
@@ -243,26 +300,52 @@ class AlgorithmComparisonWindow:
                 segments,
                 success
             ))
-        
-        tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # 布局
+        tree.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
     
     def display_detailed_report(self, parent, comparison_result):
         """显示详细报告"""
         # 创建文本框显示详细报告
         text_frame = ttk.Frame(parent)
         text_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
+
+        # 创建文本框和滚动条
         text_widget = tk.Text(text_frame, wrap=tk.WORD, font=('Consolas', 10))
-        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=text_widget.yview)
-        text_widget.configure(yscrollcommand=scrollbar.set)
-        
+
+        # 垂直滚动条
+        v_scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=text_widget.yview)
+        text_widget.configure(yscrollcommand=v_scrollbar.set)
+
+        # 水平滚动条
+        h_scrollbar = ttk.Scrollbar(text_frame, orient=tk.HORIZONTAL, command=text_widget.xview)
+        text_widget.configure(xscrollcommand=h_scrollbar.set)
+
         # 生成报告内容
         report_content = self.generate_report(comparison_result)
         text_widget.insert(tk.END, report_content)
         text_widget.configure(state=tk.DISABLED)
-        
-        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 布局
+        text_widget.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        text_frame.grid_rowconfigure(0, weight=1)
+        text_frame.grid_columnconfigure(0, weight=1)
+
+        # 绑定鼠标滚轮
+        def _on_mousewheel(event):
+            text_widget.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        text_widget.bind("<MouseWheel>", _on_mousewheel)
+        text_widget.bind("<Button-4>", lambda e: text_widget.yview_scroll(-1, "units"))
+        text_widget.bind("<Button-5>", lambda e: text_widget.yview_scroll(1, "units"))
     
     def generate_report(self, comparison_result):
         """生成对比报告内容"""

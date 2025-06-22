@@ -13,14 +13,14 @@ import os
 import logging
 import warnings
 import io
+import time
+
+# 导入新的日志和异常处理系统
+from utils.logger import LoggerMixin, log_performance, log_exception
+from utils.exceptions import ImageLoadError, ImageSaveError, ValidationError, validate_image_size
 
 
-class ImageLoadError(Exception):
-    """图像加载错误的自定义异常"""
-    pass
-
-
-class ImageLoader:
+class ImageLoader(LoggerMixin):
     """增强版图像加载器"""
 
     def __init__(self, max_size: Tuple[int, int] = (4096, 4096),
@@ -34,6 +34,7 @@ class ImageLoader:
             auto_orient: 是否自动根据EXIF信息旋转图像
             normalize_format: 是否自动标准化图像格式
         """
+        super().__init__()
         self.max_size = max_size
         self.auto_orient = auto_orient
         self.normalize_format = normalize_format
@@ -44,9 +45,6 @@ class ImageLoader:
             '.webp', '.gif', '.ico', '.ppm', '.pgm', '.pbm'
         }
 
-        # 设置日志
-        self.logger = logging.getLogger(__name__)
-
         # 图像统计信息
         self.load_stats = {
             'total_loaded': 0,
@@ -54,7 +52,11 @@ class ImageLoader:
             'format_conversions': 0,
             'size_reductions': 0
         }
+
+        self.logger.info("图像加载器初始化完成")
     
+    @log_performance("图像加载")
+    @log_exception
     def load_image(self, image_path: Union[str, Path]) -> Optional[np.ndarray]:
         """
         增强版图像加载方法
@@ -72,6 +74,8 @@ class ImageLoader:
             image_path = Path(image_path)
             self.load_stats['total_loaded'] += 1
 
+            start_time = time.time()
+
             # 1. 路径和文件验证
             self._validate_image_path(image_path)
 
@@ -79,12 +83,19 @@ class ImageLoader:
             image = self._load_with_fallback(image_path)
 
             if image is None:
-                raise ImageLoadError(f"所有加载方法都失败: {image_path}")
+                raise ImageLoadError(str(image_path), "所有加载方法都失败")
 
             # 3. 图像后处理
             image = self._post_process_image(image, image_path)
 
-            self.logger.info(f"成功加载图像: {image_path} ({image.shape})")
+            # 4. 记录图像信息
+            h, w, c = image.shape
+            duration = time.time() - start_time
+            self.logger.log_image_info(str(image_path), w, h, c)
+            self.logger.log_performance("图像加载", duration,
+                                      width=w, height=h, channels=c,
+                                      file_size_mb=image_path.stat().st_size / 1024 / 1024)
+
             return image
 
         except ImageLoadError:
@@ -92,39 +103,37 @@ class ImageLoader:
             raise
         except Exception as e:
             self.load_stats['failed_loads'] += 1
-            error_msg = f"加载图像时发生未预期错误: {str(e)}"
-            self.logger.error(error_msg)
-            raise ImageLoadError(error_msg) from e
+            raise ImageLoadError(str(image_path), f"未预期错误: {str(e)}") from e
 
     def _validate_image_path(self, image_path: Path):
         """验证图像路径和文件"""
         # 检查文件是否存在
         if not image_path.exists():
-            raise ImageLoadError(f"文件不存在: {image_path}")
+            raise ImageLoadError(str(image_path), "文件不存在")
 
         # 检查是否为文件
         if not image_path.is_file():
-            raise ImageLoadError(f"路径不是文件: {image_path}")
+            raise ImageLoadError(str(image_path), "路径不是文件")
 
         # 检查文件大小
         file_size = image_path.stat().st_size
         if file_size == 0:
-            raise ImageLoadError(f"文件为空: {image_path}")
+            raise ImageLoadError(str(image_path), "文件为空")
 
         if file_size > 100 * 1024 * 1024:  # 100MB限制
-            raise ImageLoadError(f"文件过大 ({file_size/1024/1024:.1f}MB): {image_path}")
+            raise ImageLoadError(str(image_path), f"文件过大 ({file_size/1024/1024:.1f}MB)")
 
         # 检查文件扩展名
         if image_path.suffix.lower() not in self.supported_formats:
             supported_list = ', '.join(sorted(self.supported_formats))
             raise ImageLoadError(
-                f"不支持的图像格式: {image_path.suffix}\n"
-                f"支持的格式: {supported_list}"
+                str(image_path),
+                f"不支持的图像格式: {image_path.suffix}，支持的格式: {supported_list}"
             )
 
         # 检查文件权限
         if not os.access(image_path, os.R_OK):
-            raise ImageLoadError(f"文件无读取权限: {image_path}")
+            raise ImageLoadError(str(image_path), "文件无读取权限")
 
     def _load_with_fallback(self, image_path: Path) -> Optional[np.ndarray]:
         """使用多种方法尝试加载图像"""

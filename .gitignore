@@ -1,0 +1,146 @@
+# ==============================================
+# Python 图像分割系统 .gitignore
+# ==============================================
+
+# ----------------- Python -----------------
+# 字节码文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 分发/打包
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# 单元测试/覆盖率报告
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# ----------------- 开发环境 -----------------
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# ----------------- 图像文件 -----------------
+# 测试图像文件（根据需要调整）
+test_images/
+sample_images/
+temp_images/
+output_images/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+*.gif
+!examples/*.png  # 保留示例图片
+
+# ----------------- 日志和缓存 -----------------
+# 应用日志
+logs/
+*.log
+*.log.*
+
+# 临时文件
+tmp/
+temp/
+.tmp/
+
+# 缓存文件
+.cache/
+*.cache
+
+# ----------------- 系统文件 -----------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ----------------- 性能分析 -----------------
+# 性能分析报告
+*.prof
+*.profile
+performance_reports/
+memory_profiles/
+
+# ----------------- 配置文件 -----------------
+# 本地配置（保留模板）
+config/local_config.json
+config/user_settings.json
+!config/theme_config.json  # 保留主题配置
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# ----------------- 文档构建 -----------------
+# Sphinx文档
+docs/_build/
+docs/build/
+
+# ----------------- 项目特定 -----------------
+# 算法输出结果
+results/
+segmentation_results/
+comparison_outputs/
+
+# 大型测试文件
+large_test_files/
+benchmark_data/

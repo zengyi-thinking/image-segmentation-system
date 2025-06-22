@@ -222,10 +222,13 @@ class PerformanceAnalysisWindow:
     
     def display_overview(self, parent, benchmark_result):
         """显示性能概览"""
+        # 创建可滚动的容器
+        scroll_container = self.create_scrollable_container(parent)
+
         # 创建概览卡片
-        cards_frame = ttk.Frame(parent)
+        cards_frame = ttk.Frame(scroll_container)
         cards_frame.pack(fill=tk.X, padx=20, pady=20)
-        
+
         # 执行时间卡片
         exec_time = benchmark_result['execution_time']
         time_card = self.create_metric_card(
@@ -235,7 +238,7 @@ class PerformanceAnalysisWindow:
             f"范围: {exec_time['min']:.3f}s - {exec_time['max']:.3f}s"
         )
         time_card.pack(side=tk.LEFT, padx=(0, 10), fill=tk.Y)
-        
+
         # 内存使用卡片
         memory = benchmark_result['memory_usage']
         memory_card = self.create_metric_card(
@@ -245,7 +248,7 @@ class PerformanceAnalysisWindow:
             f"峰值: {memory['max']:.1f}MB"
         )
         memory_card.pack(side=tk.LEFT, padx=(0, 10), fill=tk.Y)
-        
+
         # 效率分数卡片
         efficiency = benchmark_result.get('efficiency_score', 0)
         efficiency_card = self.create_metric_card(
@@ -255,11 +258,11 @@ class PerformanceAnalysisWindow:
             "综合性能评估"
         )
         efficiency_card.pack(side=tk.LEFT, fill=tk.Y)
-        
+
         # 详细信息
-        details_frame = ttk.LabelFrame(parent, text="📋 分析详情", padding=15)
+        details_frame = ttk.LabelFrame(scroll_container, text="📋 分析详情", padding=15)
         details_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(10, 20))
-        
+
         details_text = f"""算法名称: {benchmark_result['algorithm_name']}
 测试次数: {benchmark_result['num_runs']}
 图像尺寸: {self.current_image.shape}
@@ -278,7 +281,7 @@ class PerformanceAnalysisWindow:
 
 • 效率分数: {efficiency:.1f}/100
 • 处理速度: {self.current_image.size / exec_time['mean']:.0f} 像素/秒"""
-        
+
         details_label = ttk.Label(
             details_frame,
             text=details_text,
@@ -286,6 +289,42 @@ class PerformanceAnalysisWindow:
             justify=tk.LEFT
         )
         details_label.pack(anchor=tk.W)
+
+    def create_scrollable_container(self, parent):
+        """创建可滚动的容器"""
+        # 创建画布和滚动条
+        canvas = tk.Canvas(parent, highlightthickness=0)
+        v_scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        h_scrollbar = ttk.Scrollbar(parent, orient="horizontal", command=canvas.xview)
+
+        scrollable_frame = ttk.Frame(canvas)
+
+        # 配置滚动
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+
+        # 布局
+        canvas.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        parent.grid_rowconfigure(0, weight=1)
+        parent.grid_columnconfigure(0, weight=1)
+
+        # 绑定鼠标滚轮
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        canvas.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+        canvas.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+
+        return scrollable_frame
     
     def create_metric_card(self, parent, title, value, subtitle):
         """创建指标卡片"""
@@ -311,15 +350,27 @@ class PerformanceAnalysisWindow:
 
     def display_statistics(self, parent, benchmark_result):
         """显示详细统计"""
+        # 创建容器
+        container = ttk.Frame(parent)
+        container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
         # 创建统计表格
         columns = ('指标', '平均值', '标准差', '最小值', '最大值', '中位数')
 
-        tree = ttk.Treeview(parent, columns=columns, show='headings', height=10)
+        tree = ttk.Treeview(container, columns=columns, show='headings', height=10)
 
         # 设置列标题和宽度
         for col in columns:
             tree.heading(col, text=col)
             tree.column(col, width=120)
+
+        # 添加垂直滚动条
+        v_scrollbar = ttk.Scrollbar(container, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=v_scrollbar.set)
+
+        # 添加水平滚动条
+        h_scrollbar = ttk.Scrollbar(container, orient=tk.HORIZONTAL, command=tree.xview)
+        tree.configure(xscrollcommand=h_scrollbar.set)
 
         # 添加执行时间数据
         exec_time = benchmark_result['execution_time']
@@ -343,22 +394,26 @@ class PerformanceAnalysisWindow:
             f"{memory['median']:.2f}"
         ))
 
-        tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        # 布局
+        tree.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
 
-        # 添加滚动条
-        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
 
     def display_charts(self, parent, benchmark_result):
         """显示性能图表"""
         try:
             import matplotlib.pyplot as plt
-            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
             import numpy as np
 
+            # 创建可滚动的容器
+            scroll_container = self.create_scrollable_container(parent)
+
             # 创建图表
-            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
             fig.suptitle(f'{benchmark_result["algorithm_name"]} 算法性能分析', fontsize=14)
 
             # 执行时间分布
@@ -397,9 +452,13 @@ class PerformanceAnalysisWindow:
             plt.tight_layout()
 
             # 嵌入到Tkinter中
-            canvas = FigureCanvasTkAgg(fig, parent)
+            canvas = FigureCanvasTkAgg(fig, scroll_container)
             canvas.draw()
             canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+            # 添加工具栏
+            toolbar = NavigationToolbar2Tk(canvas, scroll_container)
+            toolbar.update()
 
         except Exception as e:
             error_label = ttk.Label(

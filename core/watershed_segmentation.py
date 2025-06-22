@@ -8,9 +8,33 @@ import cv2
 from scipy import ndimage
 from skimage import segmentation, feature, filters, morphology
 from skimage.segmentation import watershed
-from skimage.feature import peak_local_maxima
 from typing import Dict, Optional, Tuple, Any, Callable
 import time
+
+# Try different import paths for peak_local_maxima
+try:
+    from skimage.feature.peak import peak_local_maxima
+except ImportError:
+    try:
+        from skimage.feature import peak_local_maxima
+    except ImportError:
+        # Fallback implementation if peak_local_maxima is not available
+        def peak_local_maxima(image, min_distance=1, threshold_abs=None, **kwargs):
+            """
+            Fallback implementation for peak_local_maxima
+            """
+            from scipy.ndimage import maximum_filter
+
+            # Apply maximum filter
+            local_maxima = maximum_filter(image, size=min_distance) == image
+
+            # Apply threshold if provided
+            if threshold_abs is not None:
+                local_maxima = local_maxima & (image >= threshold_abs)
+
+            # Return coordinates as tuple of arrays (similar to original function)
+            coords = np.where(local_maxima)
+            return coords
 
 from data_structures.segmentation_result import SegmentationResult
 

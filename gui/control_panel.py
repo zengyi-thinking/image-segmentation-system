@@ -15,7 +15,7 @@ class ControlPanel:
     def __init__(self, parent, callbacks=None):
         """
         初始化控制面板
-        
+
         Args:
             parent: 父容器
             callbacks: 回调函数字典
@@ -24,17 +24,10 @@ class ControlPanel:
         self.callbacks = callbacks or {}
         self.style_manager = get_style_manager()
         self.theme_manager = get_theme_manager()
-        
-        # 创建主框架
-        self.main_frame = self.style_manager.create_labelframe(
-            parent, 
-            text="🎛️ 控制面板", 
-            padding=15,
-            style_name='Heading.TLabelFrame'
-        )
-        self.main_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 15))
-        self.main_frame.configure(width=350)
-        
+
+        # 创建主框架 - 带滚动功能
+        self.create_scrollable_frame(parent)
+
         # 初始化变量
         self.init_variables()
 
@@ -44,6 +37,71 @@ class ControlPanel:
         self.create_parameter_panel()
         self.create_execution_panel()
         self.create_result_panel()
+
+    def create_scrollable_frame(self, parent):
+        """创建可滚动的控制面板框架"""
+        # 外层容器
+        self.outer_frame = ttk.Frame(parent)
+        self.outer_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 15))
+        self.outer_frame.configure(width=350)
+
+        # 创建画布和滚动条
+        self.canvas = tk.Canvas(self.outer_frame, highlightthickness=0, width=350)
+        self.scrollbar = ttk.Scrollbar(self.outer_frame, orient="vertical", command=self.canvas.yview)
+
+        # 可滚动的内容框架
+        self.scrollable_frame = ttk.Frame(self.canvas)
+
+        # 配置滚动
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+
+        # 创建窗口
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+
+        # 配置画布滚动
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        # 布局
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        # 绑定鼠标滚轮事件
+        self.bind_mousewheel()
+
+        # 创建主标题框架
+        self.main_frame = self.style_manager.create_labelframe(
+            self.scrollable_frame,
+            text="🎛️ 控制面板",
+            padding=15,
+            style_name='Heading.TLabelFrame'
+        )
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    def bind_mousewheel(self):
+        """绑定鼠标滚轮事件到控制面板"""
+        def _on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        def _bind_to_mousewheel(event):
+            self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        def _unbind_from_mousewheel(event):
+            self.canvas.unbind_all("<MouseWheel>")
+
+        # 绑定进入和离开事件
+        self.canvas.bind('<Enter>', _bind_to_mousewheel)
+        self.canvas.bind('<Leave>', _unbind_from_mousewheel)
+
+        # 支持键盘滚动
+        self.canvas.bind('<Up>', lambda e: self.canvas.yview_scroll(-1, "units"))
+        self.canvas.bind('<Down>', lambda e: self.canvas.yview_scroll(1, "units"))
+        self.canvas.bind('<Prior>', lambda e: self.canvas.yview_scroll(-1, "pages"))  # Page Up
+        self.canvas.bind('<Next>', lambda e: self.canvas.yview_scroll(1, "pages"))   # Page Down
+
+        self.canvas.focus_set()
     
     def init_variables(self):
         """初始化控制变量"""
